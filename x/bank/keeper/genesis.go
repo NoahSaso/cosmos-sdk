@@ -29,8 +29,63 @@ func (k BaseKeeper) InitGenesis(ctx sdk.Context, genState *types.GenesisState) {
 		panic(fmt.Errorf("genesis supply is incorrect, expected %v, got %v", genState.Supply, totalSupply))
 	}
 
+	// INDEXER.
+	for _, balance := range genState.Balances {
+		for _, coin := range balance.Coins {
+			k.indexerWriter.Write(
+				&ctx,
+				"genesis_balance",
+				coin,
+				// Empty "from" for initial balance.
+				IndexerBankEntity{
+					ModuleName: "",
+					Address:    "",
+					Balance: sdk.Coin{
+						Denom:  coin.GetDenom(),
+						Amount: sdk.NewInt(-1),
+					},
+				},
+				IndexerBankEntity{
+					ModuleName: "",
+					Address:    balance.Address,
+					Balance:    k.GetBalance(ctx, balance.GetAddress(), coin.GetDenom()),
+				},
+				// Genesis supply indexed below, not here.
+				sdk.Coin{
+					Denom:  coin.GetDenom(),
+					Amount: sdk.NewInt(-1),
+				},
+			)
+		}
+	}
+
 	for _, supply := range totalSupply {
 		k.setSupply(ctx, supply)
+
+		// INDEXER.
+		k.indexerWriter.Write(
+			&ctx,
+			"genesis_supply",
+			supply,
+			// Empty "from" and "to" for initial supply.
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    "",
+				Balance: sdk.Coin{
+					Denom:  supply.GetDenom(),
+					Amount: sdk.NewInt(-1),
+				},
+			},
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    "",
+				Balance: sdk.Coin{
+					Denom:  supply.GetDenom(),
+					Amount: sdk.NewInt(-1),
+				},
+			},
+			supply,
+		)
 	}
 
 	for _, meta := range genState.DenomMetadata {

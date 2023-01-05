@@ -1,6 +1,9 @@
 package keeper
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -40,10 +43,13 @@ type BaseSendKeeper struct {
 
 	// list of addresses that are restricted from receiving transactions
 	blockedAddrs map[string]bool
+
+	// INDEXER.
+	indexerWriter *IndexerWriter
 }
 
 func NewBaseSendKeeper(
-	cdc codec.BinaryCodec, storeKey sdk.StoreKey, ak types.AccountKeeper, paramSpace paramtypes.Subspace, blockedAddrs map[string]bool,
+	cdc codec.BinaryCodec, storeKey sdk.StoreKey, ak types.AccountKeeper, paramSpace paramtypes.Subspace, blockedAddrs map[string]bool, homePath string,
 ) BaseSendKeeper {
 
 	return BaseSendKeeper{
@@ -53,6 +59,9 @@ func NewBaseSendKeeper(
 		storeKey:       storeKey,
 		paramSpace:     paramSpace,
 		blockedAddrs:   blockedAddrs,
+
+		// INDEXER.
+		indexerWriter: NewIndexerWriter(homePath),
 	}
 }
 
@@ -125,6 +134,89 @@ func (k BaseSendKeeper) InputOutputCoins(ctx sdk.Context, inputs []types.Input, 
 		}
 	}
 
+	// INDEXER.
+	if !ctx.IsCheckTx() {
+		var inputAddresses []string
+		for _, input := range inputs {
+			inputAddresses = append(inputAddresses, input.Address)
+		}
+		joinedInputAddresses := strings.Join(inputAddresses, ",")
+		var outputAddresses []string
+		for _, output := range outputs {
+			outputAddresses = append(outputAddresses, output.Address)
+		}
+		joinedOutputAddresses := strings.Join(outputAddresses, ",")
+
+		for _, input := range inputs {
+			inputAccAddress, err := sdk.AccAddressFromBech32(input.Address)
+			// Should never happen because it was checked above.
+			if err != nil {
+				panic(fmt.Errorf("[INDEXER][bank] InputOutputCoins input address invalid. address=%v, error=%w", input.Address, err))
+			}
+
+			for _, coin := range input.Coins {
+				k.indexerWriter.Write(
+					&ctx,
+					"multisend_in",
+					coin,
+					IndexerBankEntity{
+						ModuleName: "",
+						Address:    input.Address,
+						Balance:    k.GetBalance(ctx, inputAccAddress, coin.GetDenom()),
+					},
+					IndexerBankEntity{
+						ModuleName: "",
+						Address:    joinedOutputAddresses,
+						// -1 for output balance since there are many addresses.
+						Balance: sdk.Coin{
+							Denom:  coin.GetDenom(),
+							Amount: sdk.NewInt(-1),
+						},
+					},
+					// No supply change, so use -1.
+					sdk.Coin{
+						Denom:  coin.GetDenom(),
+						Amount: sdk.NewInt(-1),
+					},
+				)
+			}
+		}
+		for _, output := range outputs {
+			outputAccAddress, err := sdk.AccAddressFromBech32(output.Address)
+			// Should never happen because it was checked above.
+			if err != nil {
+				panic(fmt.Errorf("[INDEXER][bank] InputOutputCoins output address invalid. address=%v, error=%w", output.Address, err))
+			}
+
+			for _, coin := range output.Coins {
+				k.indexerWriter.Write(
+					&ctx,
+					"multisend_out",
+					coin,
+					IndexerBankEntity{
+						ModuleName: "",
+						Address:    joinedInputAddresses,
+						// -1 for input balance since there are many addresses.
+						Balance: sdk.Coin{
+							Denom:  coin.GetDenom(),
+							Amount: sdk.NewInt(-1),
+						},
+					},
+					IndexerBankEntity{
+						ModuleName: "",
+						Address:    output.Address,
+						Balance:    k.GetBalance(ctx, outputAccAddress, coin.GetDenom()),
+					},
+					// No supply change, so use -1.
+					sdk.Coin{
+						Denom:  coin.GetDenom(),
+						Amount: sdk.NewInt(-1),
+					},
+				)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -163,6 +255,30 @@ func (k BaseSendKeeper) SendCoins(ctx sdk.Context, fromAddr sdk.AccAddress, toAd
 			sdk.NewAttribute(types.AttributeKeySender, fromAddr.String()),
 		),
 	})
+
+	// INDEXER.
+	for _, coin := range amt {
+		k.indexerWriter.Write(
+			&ctx,
+			"send",
+			coin,
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    fromAddr.String(),
+				Balance:    k.GetBalance(ctx, fromAddr, coin.GetDenom()),
+			},
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    toAddr.String(),
+				Balance:    k.GetBalance(ctx, toAddr, coin.GetDenom()),
+			},
+			// No supply change, so use -1.
+			sdk.Coin{
+				Denom:  coin.GetDenom(),
+				Amount: sdk.NewInt(-1),
+			},
+		)
+	}
 
 	return nil
 }

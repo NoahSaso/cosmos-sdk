@@ -97,6 +97,7 @@ func NewBaseKeeper(
 	ak types.AccountKeeper,
 	paramSpace paramtypes.Subspace,
 	blockedAddrs map[string]bool,
+	homePath string,
 ) BaseKeeper {
 
 	// set KeyTable if it has not already been set
@@ -105,7 +106,7 @@ func NewBaseKeeper(
 	}
 
 	return BaseKeeper{
-		BaseSendKeeper:         NewBaseSendKeeper(cdc, storeKey, ak, paramSpace, blockedAddrs),
+		BaseSendKeeper:         NewBaseSendKeeper(cdc, storeKey, ak, paramSpace, blockedAddrs, homePath),
 		ak:                     ak,
 		cdc:                    cdc,
 		storeKey:               storeKey,
@@ -117,7 +118,8 @@ func NewBaseKeeper(
 // WithMintCoinsRestriction restricts the bank Keeper used within a specific module to
 // have restricted permissions on minting via function passed in parameter.
 // Previous restriction functions can be nested as such:
-//  bankKeeper.WithMintCoinsRestriction(restriction1).WithMintCoinsRestriction(restriction2)
+//
+//	bankKeeper.WithMintCoinsRestriction(restriction1).WithMintCoinsRestriction(restriction2)
 func (k BaseKeeper) WithMintCoinsRestriction(check MintingRestrictionFn) BaseKeeper {
 	oldRestrictionFn := k.mintCoinsRestrictionFn
 	k.mintCoinsRestrictionFn = func(ctx sdk.Context, coins sdk.Coins) error {
@@ -179,6 +181,30 @@ func (k BaseKeeper) DelegateCoins(ctx sdk.Context, delegatorAddr, moduleAccAddr 
 		return err
 	}
 
+	// INDEXER.
+	for _, coin := range amt {
+		k.indexerWriter.Write(
+			&ctx,
+			"delegate",
+			coin,
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    delegatorAddr.String(),
+				Balance:    k.GetBalance(ctx, delegatorAddr, coin.GetDenom()),
+			},
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    moduleAccAddr.String(),
+				Balance:    k.GetBalance(ctx, moduleAccAddr, coin.GetDenom()),
+			},
+			// No supply change, so use -1.
+			sdk.Coin{
+				Denom:  coin.GetDenom(),
+				Amount: sdk.NewInt(-1),
+			},
+		)
+	}
+
 	return nil
 }
 
@@ -209,6 +235,30 @@ func (k BaseKeeper) UndelegateCoins(ctx sdk.Context, moduleAccAddr, delegatorAdd
 	err = k.addCoins(ctx, delegatorAddr, amt)
 	if err != nil {
 		return err
+	}
+
+	// INDEXER.
+	for _, coin := range amt {
+		k.indexerWriter.Write(
+			&ctx,
+			"undelegate",
+			coin,
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    moduleAccAddr.String(),
+				Balance:    k.GetBalance(ctx, moduleAccAddr, coin.GetDenom()),
+			},
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    delegatorAddr.String(),
+				Balance:    k.GetBalance(ctx, delegatorAddr, coin.GetDenom()),
+			},
+			// No supply change, so use -1.
+			sdk.Coin{
+				Denom:  coin.GetDenom(),
+				Amount: sdk.NewInt(-1),
+			},
+		)
 	}
 
 	return nil
@@ -429,6 +479,31 @@ func (k BaseKeeper) MintCoins(ctx sdk.Context, moduleName string, amounts sdk.Co
 		types.NewCoinMintEvent(acc.GetAddress(), amounts),
 	)
 
+	// INDEXER.
+	moduleAddress := acc.GetAddress()
+	for _, coin := range amounts {
+		k.indexerWriter.Write(
+			&ctx,
+			"mint",
+			coin,
+			// Empty data for "from" entity since the coins were minted from nothing.
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    "",
+				Balance: sdk.Coin{
+					Denom:  coin.GetDenom(),
+					Amount: sdk.NewInt(-1),
+				},
+			},
+			IndexerBankEntity{
+				ModuleName: moduleName,
+				Address:    moduleAddress.String(),
+				Balance:    k.GetBalance(ctx, moduleAddress, coin.GetDenom()),
+			},
+			k.GetSupply(ctx, coin.GetDenom()),
+		)
+	}
+
 	return nil
 }
 
@@ -462,6 +537,31 @@ func (k BaseKeeper) BurnCoins(ctx sdk.Context, moduleName string, amounts sdk.Co
 	ctx.EventManager().EmitEvent(
 		types.NewCoinBurnEvent(acc.GetAddress(), amounts),
 	)
+
+	// INDEXER.
+	moduleAddress := acc.GetAddress()
+	for _, coin := range amounts {
+		k.indexerWriter.Write(
+			&ctx,
+			"burn",
+			coin,
+			IndexerBankEntity{
+				ModuleName: moduleName,
+				Address:    moduleAddress.String(),
+				Balance:    k.GetBalance(ctx, moduleAddress, coin.GetDenom()),
+			},
+			// Empty data for "to" entity since the coins were burned.
+			IndexerBankEntity{
+				ModuleName: "",
+				Address:    "",
+				Balance: sdk.Coin{
+					Denom:  coin.GetDenom(),
+					Amount: sdk.NewInt(-1),
+				},
+			},
+			k.GetSupply(ctx, coin.GetDenom()),
+		)
+	}
 
 	return nil
 }
