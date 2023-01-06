@@ -28,6 +28,10 @@ type IndexerBankEvent struct {
 type IndexerWriter struct {
 	output string
 	file   *os.File
+
+	// Temporary storage used before calling `SendCoins` in SendCoinsFrom*.
+	NextFromModule string
+	NextToModule   string
 }
 
 func NewIndexerWriter(homePath string) *IndexerWriter {
@@ -46,8 +50,10 @@ func NewIndexerWriter(homePath string) *IndexerWriter {
 	}
 
 	return &IndexerWriter{
-		output: output,
-		file:   file,
+		output:         output,
+		file:           file,
+		NextFromModule: "",
+		NextToModule:   "",
 	}
 }
 

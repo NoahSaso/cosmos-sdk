@@ -263,12 +263,12 @@ func (k BaseSendKeeper) SendCoins(ctx sdk.Context, fromAddr sdk.AccAddress, toAd
 			"send",
 			coin,
 			IndexerBankEntity{
-				ModuleName: "",
+				ModuleName: k.indexerWriter.NextFromModule,
 				Address:    fromAddr.String(),
 				Balance:    k.GetBalance(ctx, fromAddr, coin.GetDenom()),
 			},
 			IndexerBankEntity{
-				ModuleName: "",
+				ModuleName: k.indexerWriter.NextToModule,
 				Address:    toAddr.String(),
 				Balance:    k.GetBalance(ctx, toAddr, coin.GetDenom()),
 			},
@@ -279,6 +279,10 @@ func (k BaseSendKeeper) SendCoins(ctx sdk.Context, fromAddr sdk.AccAddress, toAd
 			},
 		)
 	}
+	// Clear temporary module name storage after use since they are set by this
+	// function's caller when necessary.
+	k.indexerWriter.NextFromModule = ""
+	k.indexerWriter.NextToModule = ""
 
 	return nil
 }

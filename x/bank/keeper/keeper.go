@@ -193,7 +193,7 @@ func (k BaseKeeper) DelegateCoins(ctx sdk.Context, delegatorAddr, moduleAccAddr 
 				Balance:    k.GetBalance(ctx, delegatorAddr, coin.GetDenom()),
 			},
 			IndexerBankEntity{
-				ModuleName: "",
+				ModuleName: k.indexerWriter.NextToModule,
 				Address:    moduleAccAddr.String(),
 				Balance:    k.GetBalance(ctx, moduleAccAddr, coin.GetDenom()),
 			},
@@ -204,6 +204,9 @@ func (k BaseKeeper) DelegateCoins(ctx sdk.Context, delegatorAddr, moduleAccAddr 
 			},
 		)
 	}
+	// Clear temporary module name storage after use since it's set by this
+	// function's caller when necessary.
+	k.indexerWriter.NextToModule = ""
 
 	return nil
 }
@@ -244,7 +247,7 @@ func (k BaseKeeper) UndelegateCoins(ctx sdk.Context, moduleAccAddr, delegatorAdd
 			"undelegate",
 			coin,
 			IndexerBankEntity{
-				ModuleName: "",
+				ModuleName: k.indexerWriter.NextFromModule,
 				Address:    moduleAccAddr.String(),
 				Balance:    k.GetBalance(ctx, moduleAccAddr, coin.GetDenom()),
 			},
@@ -260,6 +263,9 @@ func (k BaseKeeper) UndelegateCoins(ctx sdk.Context, moduleAccAddr, delegatorAdd
 			},
 		)
 	}
+	// Clear temporary module name storage after use since it's set by this
+	// function's caller when necessary.
+	k.indexerWriter.NextFromModule = ""
 
 	return nil
 }
@@ -369,6 +375,9 @@ func (k BaseKeeper) SendCoinsFromModuleToAccount(
 		return sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", recipientAddr)
 	}
 
+	// INDEXER.
+	k.indexerWriter.NextFromModule = senderModule
+
 	return k.SendCoins(ctx, senderAddr, recipientAddr, amt)
 }
 
@@ -388,6 +397,10 @@ func (k BaseKeeper) SendCoinsFromModuleToModule(
 		panic(sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "module account %s does not exist", recipientModule))
 	}
 
+	// INDEXER.
+	k.indexerWriter.NextFromModule = senderModule
+	k.indexerWriter.NextToModule = recipientModule
+
 	return k.SendCoins(ctx, senderAddr, recipientAcc.GetAddress(), amt)
 }
 
@@ -401,6 +414,9 @@ func (k BaseKeeper) SendCoinsFromAccountToModule(
 	if recipientAcc == nil {
 		panic(sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "module account %s does not exist", recipientModule))
 	}
+
+	// INDEXER.
+	k.indexerWriter.NextToModule = recipientModule
 
 	return k.SendCoins(ctx, senderAddr, recipientAcc.GetAddress(), amt)
 }
@@ -421,6 +437,9 @@ func (k BaseKeeper) DelegateCoinsFromAccountToModule(
 		panic(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "module account %s does not have permissions to receive delegated coins", recipientModule))
 	}
 
+	// INDEXER.
+	k.indexerWriter.NextToModule = recipientModule
+
 	return k.DelegateCoins(ctx, senderAddr, recipientAcc.GetAddress(), amt)
 }
 
@@ -439,6 +458,9 @@ func (k BaseKeeper) UndelegateCoinsFromModuleToAccount(
 	if !acc.HasPermission(authtypes.Staking) {
 		panic(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "module account %s does not have permissions to undelegate coins", senderModule))
 	}
+
+	// INDEXER.
+	k.indexerWriter.NextFromModule = senderModule
 
 	return k.UndelegateCoins(ctx, acc.GetAddress(), recipientAddr, amt)
 }

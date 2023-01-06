@@ -188,5 +188,20 @@ func (k Keeper) withdrawDelegationRewards(ctx sdk.Context, val stakingtypes.Vali
 	// remove delegator starting info
 	k.DeleteDelegatorStartingInfo(ctx, del.GetValidatorAddr(), del.GetDelegatorAddr())
 
+	// INDEXER.
+	if !coins.IsZero() {
+		withdrawAddr := k.GetDelegatorWithdrawAddr(ctx, del.GetDelegatorAddr())
+		for _, coin := range coins {
+			k.indexerWriter.Write(
+				&ctx,
+				"withdraw_delegation_rewards",
+				coin,
+				del.GetDelegatorAddr().String(),
+				del.GetValidatorAddr().String(),
+				withdrawAddr.String(),
+			)
+		}
+	}
+
 	return coins, nil
 }
