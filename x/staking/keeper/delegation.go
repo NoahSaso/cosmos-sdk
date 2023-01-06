@@ -704,6 +704,27 @@ func (k Keeper) Delegate(
 	// Call the after-modification hook
 	k.AfterDelegationModified(ctx, delegatorAddress, delegation.GetValidatorAddr())
 
+	// INDEXER.
+	k.indexerWriter.Write(
+		&ctx,
+		"delegate",
+		sdk.NewCoin(k.BondDenom(ctx), bondAmt),
+		newShares,
+		IndexerDelegator{
+			Address: delegation.DelegatorAddress,
+			Shares:  delegation.Shares,
+			Tokens: sdk.NewCoin(
+				k.BondDenom(ctx),
+				validator.TokensFromSharesTruncated(delegation.Shares).RoundInt(),
+			),
+		},
+		IndexerValidator{
+			OperatorAddress: validator.GetOperator().String(),
+			TotalShares:     validator.DelegatorShares,
+			TotalTokens:     sdk.NewCoin(k.BondDenom(ctx), validator.Tokens),
+		},
+	)
+
 	return newShares, nil
 }
 
@@ -766,6 +787,27 @@ func (k Keeper) Unbond(
 		// if not unbonded, we must instead remove validator in EndBlocker once it finishes its unbonding period
 		k.RemoveValidator(ctx, validator.GetOperator())
 	}
+
+	// INDEXER.
+	k.indexerWriter.Write(
+		&ctx,
+		"unbond",
+		sdk.NewCoin(k.BondDenom(ctx), amount),
+		shares,
+		IndexerDelegator{
+			Address: delegation.DelegatorAddress,
+			Shares:  delegation.Shares,
+			Tokens: sdk.NewCoin(
+				k.BondDenom(ctx),
+				validator.TokensFromSharesTruncated(delegation.Shares).RoundInt(),
+			),
+		},
+		IndexerValidator{
+			OperatorAddress: validator.GetOperator().String(),
+			TotalShares:     validator.DelegatorShares,
+			TotalTokens:     sdk.NewCoin(k.BondDenom(ctx), validator.Tokens),
+		},
+	)
 
 	return amount, nil
 }
