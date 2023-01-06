@@ -705,6 +705,13 @@ func (k Keeper) Delegate(
 	k.AfterDelegationModified(ctx, delegatorAddress, delegation.GetValidatorAddr())
 
 	// INDEXER.
+	var delegatorTokens sdk.Int
+	// Avoid divide by zero.
+	if validator.DelegatorShares.IsZero() {
+		delegatorTokens = sdk.ZeroInt()
+	} else {
+		delegatorTokens = validator.TokensFromSharesTruncated(delegation.Shares).RoundInt()
+	}
 	k.indexerWriter.Write(
 		&ctx,
 		"delegate",
@@ -713,10 +720,7 @@ func (k Keeper) Delegate(
 		IndexerDelegator{
 			Address: delegation.DelegatorAddress,
 			Shares:  delegation.Shares,
-			Tokens: sdk.NewCoin(
-				k.BondDenom(ctx),
-				validator.TokensFromSharesTruncated(delegation.Shares).RoundInt(),
-			),
+			Tokens:  sdk.NewCoin(k.BondDenom(ctx), delegatorTokens),
 		},
 		IndexerValidator{
 			OperatorAddress: validator.GetOperator().String(),
@@ -789,6 +793,13 @@ func (k Keeper) Unbond(
 	}
 
 	// INDEXER.
+	var delegatorTokens sdk.Int
+	// Avoid divide by zero.
+	if validator.DelegatorShares.IsZero() {
+		delegatorTokens = sdk.ZeroInt()
+	} else {
+		delegatorTokens = validator.TokensFromSharesTruncated(delegation.Shares).RoundInt()
+	}
 	k.indexerWriter.Write(
 		&ctx,
 		"unbond",
@@ -797,10 +808,7 @@ func (k Keeper) Unbond(
 		IndexerDelegator{
 			Address: delegation.DelegatorAddress,
 			Shares:  delegation.Shares,
-			Tokens: sdk.NewCoin(
-				k.BondDenom(ctx),
-				validator.TokensFromSharesTruncated(delegation.Shares).RoundInt(),
-			),
+			Tokens:  sdk.NewCoin(k.BondDenom(ctx), delegatorTokens),
 		},
 		IndexerValidator{
 			OperatorAddress: validator.GetOperator().String(),

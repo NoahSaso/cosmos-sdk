@@ -698,14 +698,21 @@ index b139c35f4..e9cb60562 100644
  }
  
 diff --git a/x/staking/keeper/delegation.go b/x/staking/keeper/delegation.go
-index cf1fec104..1c2b7e209 100644
+index cf1fec104..bc5fb91de 100644
 --- a/x/staking/keeper/delegation.go
 +++ b/x/staking/keeper/delegation.go
-@@ -704,6 +704,27 @@ func (k Keeper) Delegate(
+@@ -704,6 +704,31 @@ func (k Keeper) Delegate(
  	// Call the after-modification hook
  	k.AfterDelegationModified(ctx, delegatorAddress, delegation.GetValidatorAddr())
  
 +	// INDEXER.
++	var delegatorTokens sdk.Int
++	// Avoid divide by zero.
++	if validator.DelegatorShares.IsZero() {
++		delegatorTokens = sdk.ZeroInt()
++	} else {
++		delegatorTokens = validator.TokensFromSharesTruncated(delegation.Shares).RoundInt()
++	}
 +	k.indexerWriter.Write(
 +		&ctx,
 +		"delegate",
@@ -714,10 +721,7 @@ index cf1fec104..1c2b7e209 100644
 +		IndexerDelegator{
 +			Address: delegation.DelegatorAddress,
 +			Shares:  delegation.Shares,
-+			Tokens: sdk.NewCoin(
-+				k.BondDenom(ctx),
-+				validator.TokensFromSharesTruncated(delegation.Shares).RoundInt(),
-+			),
++			Tokens:  sdk.NewCoin(k.BondDenom(ctx), delegatorTokens),
 +		},
 +		IndexerValidator{
 +			OperatorAddress: validator.GetOperator().String(),
@@ -729,11 +733,18 @@ index cf1fec104..1c2b7e209 100644
  	return newShares, nil
  }
  
-@@ -767,6 +788,27 @@ func (k Keeper) Unbond(
+@@ -767,6 +792,31 @@ func (k Keeper) Unbond(
  		k.RemoveValidator(ctx, validator.GetOperator())
  	}
  
 +	// INDEXER.
++	var delegatorTokens sdk.Int
++	// Avoid divide by zero.
++	if validator.DelegatorShares.IsZero() {
++		delegatorTokens = sdk.ZeroInt()
++	} else {
++		delegatorTokens = validator.TokensFromSharesTruncated(delegation.Shares).RoundInt()
++	}
 +	k.indexerWriter.Write(
 +		&ctx,
 +		"unbond",
@@ -742,10 +753,7 @@ index cf1fec104..1c2b7e209 100644
 +		IndexerDelegator{
 +			Address: delegation.DelegatorAddress,
 +			Shares:  delegation.Shares,
-+			Tokens: sdk.NewCoin(
-+				k.BondDenom(ctx),
-+				validator.TokensFromSharesTruncated(delegation.Shares).RoundInt(),
-+			),
++			Tokens:  sdk.NewCoin(k.BondDenom(ctx), delegatorTokens),
 +		},
 +		IndexerValidator{
 +			OperatorAddress: validator.GetOperator().String(),
