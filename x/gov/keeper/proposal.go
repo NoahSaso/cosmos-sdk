@@ -19,6 +19,12 @@ func (keeper Keeper) SubmitProposal(ctx sdk.Context, content types.Content) (typ
 	// to validate the actual parameter changes before the proposal proceeds
 	// through the governance process. State is not persisted.
 	cacheCtx, _ := ctx.CacheContext()
+
+	// INDEXER: Enable `isCheckTx` so that the indexer knows not to index any
+	// state changes that occur during the simulation below. This indexer checks
+	// `isCheckTx` to detect a simulation and not index any state changes.
+	cacheCtx = cacheCtx.WithIsCheckTx(true)
+
 	handler := keeper.router.GetRoute(content.ProposalRoute())
 	if err := handler(cacheCtx, content); err != nil {
 		return types.Proposal{}, sdkerrors.Wrap(types.ErrInvalidProposalContent, err.Error())
