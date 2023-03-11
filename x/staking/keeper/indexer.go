@@ -10,13 +10,13 @@ import (
 )
 
 type IndexerSlashEvent struct {
-	Type                         string       `json:"type"`
-	RegisteredBlockHeight        int64        `json:"registeredBlockHeight"`
-	RegisteredBlockTimeUnixMicro int64        `json:"registeredBlockTimeUnixMicro"`
-	InfractionBlockHeight        int64        `json:"infractionBlockHeight"`
-	ValidatorOperator            string       `json:"validatorOperator"`
-	SlashFactor                  sdktypes.Dec `json:"slashFactor"`
-	AmountSlashed                sdktypes.Int `json:"amountSlashed"`
+	Type                      string       `json:"type"`
+	RegisteredBlockHeight     int64        `json:"registeredBlockHeight"`
+	RegisteredBlockTimeUnixMs int64        `json:"registeredBlockTimeUnixMs"`
+	InfractionBlockHeight     int64        `json:"infractionBlockHeight"`
+	ValidatorOperator         string       `json:"validatorOperator"`
+	SlashFactor               sdktypes.Dec `json:"slashFactor"`
+	AmountSlashed             sdktypes.Int `json:"amountSlashed"`
 }
 
 type IndexerWriter struct {
@@ -56,17 +56,17 @@ func (iw *IndexerWriter) WriteSlash(ctx *sdktypes.Context, infractionBlockHeight
 
 	// Export event.
 	event := IndexerSlashEvent{
-		Type:                         "slash",
-		RegisteredBlockHeight:        ctx.BlockHeight(),
-		RegisteredBlockTimeUnixMicro: ctx.BlockTime().UnixMicro(),
-		InfractionBlockHeight:        infractionBlockHeight,
-		ValidatorOperator:            validatorOperator,
-		SlashFactor:                  slashFactor,
-		AmountSlashed:                amountSlashed,
+		Type:                      "slash",
+		RegisteredBlockHeight:     ctx.BlockHeight(),
+		RegisteredBlockTimeUnixMs: ctx.BlockTime().UnixMilli(),
+		InfractionBlockHeight:     infractionBlockHeight,
+		ValidatorOperator:         validatorOperator,
+		SlashFactor:               slashFactor,
+		AmountSlashed:             amountSlashed,
 	}
 	encoder.Encode(event)
 
-	ctx.Logger().Info("[INDEXER][staking] Exported event", "type", event.Type, "registeredBlockHeight", event.RegisteredBlockHeight, "registeredBlockTimeUnixMicro", event.RegisteredBlockTimeUnixMicro, "infractionBlockHeight", event.InfractionBlockHeight, "validatorOperator", event.ValidatorOperator, "slashFactor", event.SlashFactor, "amountSlashed", event.AmountSlashed, "output", iw.output)
+	ctx.Logger().Info("[INDEXER][staking] Exported event", "type", event.Type, "registeredBlockHeight", event.RegisteredBlockHeight, "registeredBlockTimeUnixMs", event.RegisteredBlockTimeUnixMs, "infractionBlockHeight", event.InfractionBlockHeight, "validatorOperator", event.ValidatorOperator, "slashFactor", event.SlashFactor, "amountSlashed", event.AmountSlashed, "output", iw.output)
 }
 
 // Close file.
