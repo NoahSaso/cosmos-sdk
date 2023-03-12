@@ -141,12 +141,17 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
 		panic("invalid validator status")
 	}
 
+	validatorOperator := validator.GetOperator().String()
+
 	logger.Info(
 		"validator slashed by slash factor",
-		"validator", validator.GetOperator().String(),
+		"validator", validatorOperator,
 		"slash_factor", slashFactor.String(),
 		"burned", tokensToBurn,
 	)
+
+	// INDEXER.
+	k.indexerWriter.WriteSlash(&ctx, infractionHeight, validatorOperator, slashFactor, slashAmount)
 }
 
 // jail a validator
