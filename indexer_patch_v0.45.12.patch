@@ -1,8 +1,8 @@
 diff --git a/simapp/app.go b/simapp/app.go
-index 16302ecc3..472596d44 100644
+index ee6154e26..516f8b970 100644
 --- a/simapp/app.go
 +++ b/simapp/app.go
-@@ -248,7 +248,7 @@ func NewSimApp(
+@@ -250,7 +250,7 @@ func NewSimApp(
  		appCodec, keys[banktypes.StoreKey], app.AccountKeeper, app.GetSubspace(banktypes.ModuleName), app.ModuleAccountAddrs(),
  	)
  	stakingKeeper := stakingkeeper.NewKeeper(
