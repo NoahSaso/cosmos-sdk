@@ -107,8 +107,9 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
 	tokensToBurn = sdk.MaxInt(tokensToBurn, sdk.ZeroInt()) // defensive.
 
 	// we need to calculate the *effective* slash fraction for distribution
+	effectiveFraction := sdk.ZeroDec()
 	if validator.Tokens.IsPositive() {
-		effectiveFraction := tokensToBurn.ToDec().QuoRoundUp(validator.Tokens.ToDec())
+		effectiveFraction = tokensToBurn.ToDec().QuoRoundUp(validator.Tokens.ToDec())
 		// possible if power has changed
 		if effectiveFraction.GT(sdk.OneDec()) {
 			effectiveFraction = sdk.OneDec()
@@ -144,7 +145,7 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
 	)
 
 	// INDEXER.
-	k.indexerWriter.WriteSlash(&ctx, infractionHeight, validatorOperator, slashFactor, slashAmount)
+	k.indexerWriter.WriteSlash(&ctx, infractionHeight, validatorOperator, slashFactor, slashAmount, effectiveFraction, tokensToBurn)
 }
 
 // jail a validator
