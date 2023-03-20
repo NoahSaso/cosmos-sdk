@@ -30,10 +30,10 @@ index 216596932..66aa870d0 100644
  		return types.Proposal{}, sdkerrors.Wrap(types.ErrInvalidProposalContent, err.Error())
 diff --git a/x/staking/keeper/indexer.go b/x/staking/keeper/indexer.go
 new file mode 100644
-index 000000000..dcf93ab03
+index 000000000..f0454501d
 --- /dev/null
 +++ b/x/staking/keeper/indexer.go
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,79 @@
 +package keeper
 +
 +import (
@@ -53,6 +53,8 @@ index 000000000..dcf93ab03
 +	ValidatorOperator         string       `json:"validatorOperator"`
 +	SlashFactor               sdktypes.Dec `json:"slashFactor"`
 +	AmountSlashed             sdktypes.Int `json:"amountSlashed"`
++	EffectiveFraction         sdktypes.Dec `json:"effectiveFraction"`
++	StakedTokensBurned        sdktypes.Int `json:"stakedTokensBurned"`
 +}
 +
 +type IndexerWriter struct {
@@ -82,7 +84,7 @@ index 000000000..dcf93ab03
 +}
 +
 +// Write slash event to file.
-+func (iw *IndexerWriter) WriteSlash(ctx *sdktypes.Context, infractionBlockHeight int64, validatorOperator string, slashFactor sdktypes.Dec, amountSlashed sdktypes.Int) {
++func (iw *IndexerWriter) WriteSlash(ctx *sdktypes.Context, infractionBlockHeight int64, validatorOperator string, slashFactor sdktypes.Dec, amountSlashed sdktypes.Int, effectiveFraction sdktypes.Dec, stakedTokensBurned sdktypes.Int) {
 +	// If checking TX (simulating, not actually executing), do not index.
 +	if ctx.IsCheckTx() {
 +		return
@@ -99,10 +101,12 @@ index 000000000..dcf93ab03
 +		ValidatorOperator:         validatorOperator,
 +		SlashFactor:               slashFactor,
 +		AmountSlashed:             amountSlashed,
++		EffectiveFraction:         effectiveFraction,
++		StakedTokensBurned:        stakedTokensBurned,
 +	}
 +	encoder.Encode(event)
 +
-+	ctx.Logger().Info("[INDEXER][staking] Exported event", "type", event.Type, "registeredBlockHeight", event.RegisteredBlockHeight, "registeredBlockTimeUnixMs", event.RegisteredBlockTimeUnixMs, "infractionBlockHeight", event.InfractionBlockHeight, "validatorOperator", event.ValidatorOperator, "slashFactor", event.SlashFactor, "amountSlashed", event.AmountSlashed, "output", iw.output)
++	ctx.Logger().Info("[INDEXER][staking] Exported event", "type", event.Type, "registeredBlockHeight", event.RegisteredBlockHeight, "registeredBlockTimeUnixMs", event.RegisteredBlockTimeUnixMs, "infractionBlockHeight", event.InfractionBlockHeight, "validatorOperator", event.ValidatorOperator, "slashFactor", event.SlashFactor, "amountSlashed", event.AmountSlashed, "effectiveFraction", event.EffectiveFraction, "stakedTokensBurned", event.StakedTokensBurned, "output", iw.output)
 +}
 +
 +// Close file.
@@ -151,10 +155,21 @@ index 6211dcf6a..0596f4902 100644
  }
  
 diff --git a/x/staking/keeper/slash.go b/x/staking/keeper/slash.go
-index ae41eb72d..13a5ccd8b 100644
+index ae41eb72d..104164b53 100644
 --- a/x/staking/keeper/slash.go
 +++ b/x/staking/keeper/slash.go
-@@ -141,12 +141,17 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
+@@ -114,8 +114,9 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
+ 	tokensToBurn = sdk.MaxInt(tokensToBurn, sdk.ZeroInt()) // defensive.
+ 
+ 	// we need to calculate the *effective* slash fraction for distribution
++	effectiveFraction := sdk.ZeroDec()
+ 	if validator.Tokens.IsPositive() {
+-		effectiveFraction := tokensToBurn.ToDec().QuoRoundUp(validator.Tokens.ToDec())
++		effectiveFraction = tokensToBurn.ToDec().QuoRoundUp(validator.Tokens.ToDec())
+ 		// possible if power has changed
+ 		if effectiveFraction.GT(sdk.OneDec()) {
+ 			effectiveFraction = sdk.OneDec()
+@@ -141,12 +142,17 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
  		panic("invalid validator status")
  	}
  
@@ -169,7 +184,7 @@ index ae41eb72d..13a5ccd8b 100644
  	)
 +
 +	// INDEXER.
-+	k.indexerWriter.WriteSlash(&ctx, infractionHeight, validatorOperator, slashFactor, slashAmount)
++	k.indexerWriter.WriteSlash(&ctx, infractionHeight, validatorOperator, slashFactor, slashAmount, effectiveFraction, tokensToBurn)
  }
  
  // jail a validator

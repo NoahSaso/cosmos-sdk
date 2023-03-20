@@ -17,6 +17,8 @@ type IndexerSlashEvent struct {
 	ValidatorOperator         string       `json:"validatorOperator"`
 	SlashFactor               sdktypes.Dec `json:"slashFactor"`
 	AmountSlashed             sdktypes.Int `json:"amountSlashed"`
+	EffectiveFraction         sdktypes.Dec `json:"effectiveFraction"`
+	StakedTokensBurned        sdktypes.Int `json:"stakedTokensBurned"`
 }
 
 type IndexerWriter struct {
@@ -46,7 +48,7 @@ func NewIndexerWriter(homePath string) *IndexerWriter {
 }
 
 // Write slash event to file.
-func (iw *IndexerWriter) WriteSlash(ctx *sdktypes.Context, infractionBlockHeight int64, validatorOperator string, slashFactor sdktypes.Dec, amountSlashed sdktypes.Int) {
+func (iw *IndexerWriter) WriteSlash(ctx *sdktypes.Context, infractionBlockHeight int64, validatorOperator string, slashFactor sdktypes.Dec, amountSlashed sdktypes.Int, effectiveFraction sdktypes.Dec, stakedTokensBurned sdktypes.Int) {
 	// If checking TX (simulating, not actually executing), do not index.
 	if ctx.IsCheckTx() {
 		return
@@ -63,10 +65,12 @@ func (iw *IndexerWriter) WriteSlash(ctx *sdktypes.Context, infractionBlockHeight
 		ValidatorOperator:         validatorOperator,
 		SlashFactor:               slashFactor,
 		AmountSlashed:             amountSlashed,
+		EffectiveFraction:         effectiveFraction,
+		StakedTokensBurned:        stakedTokensBurned,
 	}
 	encoder.Encode(event)
 
-	ctx.Logger().Info("[INDEXER][staking] Exported event", "type", event.Type, "registeredBlockHeight", event.RegisteredBlockHeight, "registeredBlockTimeUnixMs", event.RegisteredBlockTimeUnixMs, "infractionBlockHeight", event.InfractionBlockHeight, "validatorOperator", event.ValidatorOperator, "slashFactor", event.SlashFactor, "amountSlashed", event.AmountSlashed, "output", iw.output)
+	ctx.Logger().Info("[INDEXER][staking] Exported event", "type", event.Type, "registeredBlockHeight", event.RegisteredBlockHeight, "registeredBlockTimeUnixMs", event.RegisteredBlockTimeUnixMs, "infractionBlockHeight", event.InfractionBlockHeight, "validatorOperator", event.ValidatorOperator, "slashFactor", event.SlashFactor, "amountSlashed", event.AmountSlashed, "effectiveFraction", event.EffectiveFraction, "stakedTokensBurned", event.StakedTokensBurned, "output", iw.output)
 }
 
 // Close file.
