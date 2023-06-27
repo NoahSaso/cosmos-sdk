@@ -1,0 +1,177 @@
+diff --git a/simapp/app.go b/simapp/app.go
+index 0d9775a108..f76af420d0 100644
+--- a/simapp/app.go
++++ b/simapp/app.go
+@@ -242,7 +242,7 @@ func NewSimApp(
+ 		appCodec, keys[banktypes.StoreKey], app.AccountKeeper, app.GetSubspace(banktypes.ModuleName), app.ModuleAccountAddrs(),
+ 	)
+ 	stakingKeeper := stakingkeeper.NewKeeper(
+-		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName),
++		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName), homePath,
+ 	)
+ 	app.MintKeeper = mintkeeper.NewKeeper(
+ 		appCodec, keys[minttypes.StoreKey], app.GetSubspace(minttypes.ModuleName), &stakingKeeper,
+diff --git a/x/auth/legacy/v043/store_test.go b/x/auth/legacy/v043/store_test.go
+index 3daa2d52fc..591a5f7140 100644
+--- a/x/auth/legacy/v043/store_test.go
++++ b/x/auth/legacy/v043/store_test.go
+@@ -669,6 +669,7 @@ func createValidator(t *testing.T, ctx sdk.Context, app *simapp.SimApp, powers i
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.GetSubspace(stakingtypes.ModuleName),
++		"",
+ 	)
+ 
+ 	val1, err := stakingtypes.NewValidator(valAddrs[0], pks[0], stakingtypes.Description{})
+diff --git a/x/auth/vesting/types/vesting_account_test.go b/x/auth/vesting/types/vesting_account_test.go
+index 60d7da96e4..8abaaee557 100644
+--- a/x/auth/vesting/types/vesting_account_test.go
++++ b/x/auth/vesting/types/vesting_account_test.go
+@@ -50,6 +50,7 @@ func createValidator(t *testing.T, ctx sdk.Context, app *simapp.SimApp, powers i
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.GetSubspace(stakingtypes.ModuleName),
++		"",
+ 	)
+ 
+ 	val, err := stakingtypes.NewValidator(valAddrs[0], pks[0], stakingtypes.Description{})
+diff --git a/x/gov/keeper/common_test.go b/x/gov/keeper/common_test.go
+index e39ca9c703..980f4e7a8f 100644
+--- a/x/gov/keeper/common_test.go
++++ b/x/gov/keeper/common_test.go
+@@ -29,6 +29,7 @@ func createValidators(t *testing.T, ctx sdk.Context, app *simapp.SimApp, powers
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.GetSubspace(stakingtypes.ModuleName),
++		"",
+ 	)
+ 
+ 	val1, err := stakingtypes.NewValidator(valAddrs[0], pks[0], stakingtypes.Description{})
+diff --git a/x/gov/keeper/proposal.go b/x/gov/keeper/proposal.go
+index 9be690f835..c7858a838e 100644
+--- a/x/gov/keeper/proposal.go
++++ b/x/gov/keeper/proposal.go
+@@ -23,6 +23,12 @@ func (keeper Keeper) SubmitProposal(ctx sdk.Context, content types.Content, isEx
+ 	// to validate the actual parameter changes before the proposal proceeds
+ 	// through the governance process. State is not persisted.
+ 	cacheCtx, _ := ctx.CacheContext()
++
++	// INDEXER: Enable `isCheckTx` so that the indexer knows not to index any
++	// state changes that occur during the simulation below. This indexer checks
++	// `isCheckTx` to detect a simulation and not index any state changes.
++	cacheCtx = cacheCtx.WithIsCheckTx(true)
++
+ 	handler := keeper.router.GetRoute(content.ProposalRoute())
+ 	if err := handler(cacheCtx, content); err != nil {
+ 		return types.Proposal{}, sdkerrors.Wrap(types.ErrInvalidProposalContent, err.Error())
+diff --git a/x/staking/common_test.go b/x/staking/common_test.go
+index 5d8897b1c0..c6ff39b5af 100644
+--- a/x/staking/common_test.go
++++ b/x/staking/common_test.go
+@@ -47,6 +47,7 @@ func getBaseSimappWithCustomKeeper() (*codec.LegacyAmino, *simapp.SimApp, sdk.Co
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.GetSubspace(types.ModuleName),
++		"",
+ 	)
+ 	app.StakingKeeper.SetParams(ctx, types.DefaultParams())
+ 
+diff --git a/x/staking/keeper/common_test.go b/x/staking/keeper/common_test.go
+index fb07d8694e..1405a140f5 100644
+--- a/x/staking/keeper/common_test.go
++++ b/x/staking/keeper/common_test.go
+@@ -33,6 +33,7 @@ func createTestInput() (*codec.LegacyAmino, *simapp.SimApp, sdk.Context) {
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.GetSubspace(types.ModuleName),
++		"",
+ 	)
+ 	return app.LegacyAmino(), app, ctx
+ }
+diff --git a/x/staking/keeper/grpc_query_test.go b/x/staking/keeper/grpc_query_test.go
+index ba43269e2e..1bff7e471d 100644
+--- a/x/staking/keeper/grpc_query_test.go
++++ b/x/staking/keeper/grpc_query_test.go
+@@ -780,6 +780,7 @@ func createValidators(t *testing.T, ctx sdk.Context, app *simapp.SimApp, powers
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.GetSubspace(types.ModuleName),
++		"",
+ 	)
+ 
+ 	val1 := teststaking.NewValidator(t, valAddrs[0], pks[0])
+diff --git a/x/staking/keeper/keeper.go b/x/staking/keeper/keeper.go
+index 6211dcf6ad..0596f49023 100644
+--- a/x/staking/keeper/keeper.go
++++ b/x/staking/keeper/keeper.go
+@@ -25,12 +25,15 @@ type Keeper struct {
+ 	bankKeeper types.BankKeeper
+ 	hooks      types.StakingHooks
+ 	paramstore paramtypes.Subspace
++
++	// INDEXER.
++	indexerWriter *IndexerWriter
+ }
+ 
+ // NewKeeper creates a new staking Keeper instance
+ func NewKeeper(
+ 	cdc codec.BinaryCodec, key sdk.StoreKey, ak types.AccountKeeper, bk types.BankKeeper,
+-	ps paramtypes.Subspace,
++	ps paramtypes.Subspace, homePath string,
+ ) Keeper {
+ 	// set KeyTable if it has not already been set
+ 	if !ps.HasKeyTable() {
+@@ -47,12 +50,13 @@ func NewKeeper(
+ 	}
+ 
+ 	return Keeper{
+-		storeKey:   key,
+-		cdc:        cdc,
+-		authKeeper: ak,
+-		bankKeeper: bk,
+-		paramstore: ps,
+-		hooks:      nil,
++		storeKey:      key,
++		cdc:           cdc,
++		authKeeper:    ak,
++		bankKeeper:    bk,
++		paramstore:    ps,
++		hooks:         nil,
++		indexerWriter: NewIndexerWriter(homePath),
+ 	}
+ }
+ 
+diff --git a/x/staking/keeper/slash.go b/x/staking/keeper/slash.go
+index e04e020081..9445fa2c72 100644
+--- a/x/staking/keeper/slash.go
++++ b/x/staking/keeper/slash.go
+@@ -107,8 +107,9 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
+ 	tokensToBurn = sdk.MaxInt(tokensToBurn, sdk.ZeroInt()) // defensive.
+ 
+ 	// we need to calculate the *effective* slash fraction for distribution
++	effectiveFraction := sdk.ZeroDec()
+ 	if validator.Tokens.IsPositive() {
+-		effectiveFraction := tokensToBurn.ToDec().QuoRoundUp(validator.Tokens.ToDec())
++		effectiveFraction = tokensToBurn.ToDec().QuoRoundUp(validator.Tokens.ToDec())
+ 		// possible if power has changed
+ 		if effectiveFraction.GT(sdk.OneDec()) {
+ 			effectiveFraction = sdk.OneDec()
+@@ -135,12 +136,17 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
+ 		panic("invalid validator status")
+ 	}
+ 
++	validatorOperator := validator.GetOperator().String()
++
+ 	logger.Info(
+ 		"validator slashed by slash factor",
+-		"validator", validator.GetOperator().String(),
++		"validator", validatorOperator,
+ 		"slash_factor", slashFactor.String(),
+ 		"burned", tokensToBurn,
+ 	)
++
++	// INDEXER.
++	k.indexerWriter.WriteSlash(&ctx, infractionHeight, validatorOperator, slashFactor, slashAmount, effectiveFraction, tokensToBurn)
+ }
+ 
+ // jail a validator
